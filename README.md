@@ -142,28 +142,72 @@ code-robin/
 
 ## 快速开始
 
-### 30 秒上手
+### 环境要求
+
+- Python 3.11+（推荐 3.13）
+- pip 或 uv
+
+检查 Python 版本：
 
 ```bash
-# 1. 克隆并安装
-git clone https://github.com/anxiong2025/code-robin.git
-cd code-robin
-pip install -e .
-
-# 2. 直接开聊（以 DeepSeek 为例）
-code-robin interactive -p deepseek -k sk-你的key
+python3 --version   # 需要 3.11 或以上
 ```
 
-就这两步，不需要任何额外配置。
-
-### 如果你想持久化保存 Key
+### 第一步：克隆项目
 
 ```bash
-# 交互式配置向导，按 Enter 跳过不需要的厂商
-code-robin configure
+git clone https://github.com/anxiong2025/code-robin.git
+cd code-robin
+```
 
-# 以后直接启动即可
+### 第二步：创建虚拟环境并安装
+
+```bash
+# 创建虚拟环境
+python3 -m venv .venv
+
+# 激活虚拟环境
+source .venv/bin/activate        # macOS / Linux
+# .venv\Scripts\activate         # Windows
+
+# 安装项目（开发模式）
+pip install -e .
+```
+
+> 激活后终端提示符会出现 `(.venv)`，表示虚拟环境已生效。
+
+### 第三步：启动
+
+```bash
+# 直接传入 Key 启动（以 DeepSeek 为例）
+code-robin interactive -p deepseek -k sk-你的key
+
+# 或者用 OpenRouter（一个 key 用所有模型）
+code-robin interactive -p openrouter -k sk-or-v1-xxx
+
+# 或者用 Anthropic Claude
+code-robin interactive -p anthropic -k sk-ant-xxx
+```
+
+就这三步，可以开聊了。
+
+### 持久化保存 Key（可选）
+
+不想每次都传 `-k`？运行配置向导：
+
+```bash
+code-robin configure    # 交互式输入各厂商 Key，按 Enter 跳过不需要的
+
+# 以后直接启动
 code-robin interactive
+```
+
+### 不激活虚拟环境也能用
+
+如果你不想每次 `source .venv/bin/activate`，可以直接用完整路径：
+
+```bash
+.venv/bin/code-robin interactive -p deepseek -k sk-你的key
 ```
 
 ---
@@ -244,80 +288,35 @@ EOF
 
 ## 使用示例
 
-### AI 对话
-
 ```bash
-# Anthropic Claude
-code-robin interactive -p anthropic -k sk-ant-xxx -m claude-opus-4-20250514
-
-# OpenAI GPT
-code-robin interactive -p openai -k sk-xxx -m gpt-4o-mini
-
-# Google Gemini
-code-robin interactive -p google -k AIzaSyxxx
-
-# DeepSeek
+# 各厂商启动示例
 code-robin interactive -p deepseek -k sk-xxx
-
-# 通义千问
+code-robin interactive -p openai -k sk-xxx -m gpt-4o-mini
+code-robin interactive -p google -k AIzaSyxxx
 code-robin interactive -p qwen -k sk-xxx -m qwen-max
-
-# OpenRouter（一个 key，任意模型）
 code-robin interactive -p openrouter -k sk-or-xxx -m google/gemini-2.0-flash
 
-# 硅基流动
-code-robin interactive -p siliconflow -k sk-xxx -m Qwen/Qwen2.5-72B-Instruct
+# 项目分析
+code-robin scan ./my-project                    # 扫描项目结构
+code-robin arch ./my-project -o ARCHITECTURE.md  # 生成架构报告
+code-robin deps ./my-project                    # 模块依赖分析
+code-robin stats ./my-project                   # 项目统计
+code-robin models                               # 查看厂商及 Key 状态
 ```
 
-### 交互模式演示
+### 交互模式
 
 ```
 $ code-robin interactive -p deepseek -k sk-xxx
 code-robin — Interactive Mode
 Current: DeepSeek (深度求索) (deepseek, model: deepseek-chat)
-Type "help" for commands, "models" to list providers, "exit" to quit.
 
-robin> scan ./src
-## Project Manifest
-Root: `/path/to/src`
-Total Python files: **7**
-...
-
-robin> 这个项目用了什么设计模式？
-该项目采用了分层架构模式，从底层数据模型到上层 CLI 界面...
-
-robin> model openrouter google/gemini-2.0-flash
-Switched to OpenRouter (多模型聚合) (openrouter, model: google/gemini-2.0-flash)
-
-robin> model
-Current: OpenRouter (多模型聚合) (openrouter, model=google/gemini-2.0-flash)
-
-robin> models
-  ✓  deepseek     DeepSeek (深度求索)     model: deepseek-chat
-  ✓  openrouter   OpenRouter (多模型聚合)  model: anthropic/claude-sonnet-4
-  ✗  anthropic    Anthropic (Claude)     model: claude-sonnet-4-6-20250514
-  ...
-
+robin> scan ./src                                   # 扫描项目
+robin> 这个项目用了什么设计模式？                        # AI 对话
+robin> model openrouter google/gemini-2.0-flash      # 切换厂商和模型
+robin> model                                         # 查看当前模型
+robin> models                                        # 列出所有厂商
 robin> exit
-```
-
-### 项目分析
-
-```bash
-# 扫描项目结构
-code-robin scan ./my-project
-
-# 生成完整架构报告
-code-robin arch ./my-project -o ARCHITECTURE.md
-
-# 分析模块依赖关系
-code-robin deps ./my-project
-
-# 查看项目统计
-code-robin stats ./my-project
-
-# 查看所有厂商及 Key 配置状态
-code-robin models
 ```
 
 ---
@@ -351,32 +350,19 @@ code-robin models
 ## 编程接口
 
 ```python
-from src import scan_project, scan_dependencies, Reporter
+from src import scan_project, Reporter
 
-# 扫描项目
 manifest = scan_project('./my-project')
-print(f'共 {manifest.total_python_files} 个 Python 文件')
-print(manifest.to_markdown())
-
-# 依赖分析
-deps = scan_dependencies('./my-project')
-for dep in deps:
-    print(f'{dep.source} → {dep.target} ({dep.import_type})')
-
-# 生成完整报告
-reporter = Reporter.from_path('./my-project')
+print(reporter := Reporter.from_path('./my-project'))
 print(reporter.render_full_report())
 ```
-
----
 
 ## 测试
 
 ```bash
-pytest tests/ -v
+source .venv/bin/activate
+pytest tests/ -v    # 12 个测试
 ```
-
-当前 12 个测试覆盖扫描器、报告器、数据模型、CLI 入口。
 
 ---
 
