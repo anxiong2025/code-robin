@@ -118,3 +118,9 @@ main.py (CLI + REPL + Claude AI chat)
 ## License
 
 MIT
+
+---
+
+## Author / 作者
+
+![](https://fisherai-1312281807.cos.ap-guangzhou.myqcloud.com/6df7dfc5e5e5ea9267ed62795a992e4d.bmp)
