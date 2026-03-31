@@ -1,16 +1,16 @@
-"""Python porting workspace for the Claude Code rewrite effort."""
+"""claude-code-robin — Read your codebase like Robin reads Poneglyphs."""
 
-from .commands import PORTED_COMMANDS, build_command_backlog
-from .port_manifest import PortManifest, build_port_manifest
-from .query_engine import QueryEnginePort
-from .tools import PORTED_TOOLS, build_tool_backlog
+from .models import ArchReport, Dependency, Module, ProjectManifest, ProjectStats
+from .reporter import Reporter
+from .scanner import scan_dependencies, scan_project
 
 __all__ = [
-    'PortManifest',
-    'QueryEnginePort',
-    'PORTED_COMMANDS',
-    'PORTED_TOOLS',
-    'build_command_backlog',
-    'build_port_manifest',
-    'build_tool_backlog',
+    'ArchReport',
+    'Dependency',
+    'Module',
+    'ProjectManifest',
+    'ProjectStats',
+    'Reporter',
+    'scan_dependencies',
+    'scan_project',
 ]

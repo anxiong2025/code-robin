@@ -1,2 +1,36 @@
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local config (may contain sensitive permissions/paths)
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive files
+.env
+.env.*
+*.pem
+*.key
+credentials.*
+secrets.*
+
+# Archive
 archive/

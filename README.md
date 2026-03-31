@@ -1,106 +1,120 @@
-# Claude Code Python Porting Workspace
+# claude-code-robin
 
-> The primary `src/` tree in this repository is now dedicated to **Python porting work**. The March 31, 2026 Claude Code source exposure is part of the project's background, but the tracked repository is now centered on Python source rather than the exposed TypeScript snapshot.
+> Read your codebase like Robin reads Poneglyphs.
 
----
+A Python project architecture analyzer and documentation generator with built-in Claude AI conversation support.
 
-## Porting Status
+## Features
 
-The main source tree is now Python-first.
+- **Project Scanning** — Recursively scan Python projects, count files/lines, discover modules
+- **Dependency Analysis** — Parse AST to extract import relationships between modules
+- **Architecture Reports** — Generate complete Markdown architecture documentation
+- **Interactive Mode** — Chat with Claude about your codebase in the terminal
+- **Dual AI Backend** — Supports both Anthropic API and AWS Bedrock
 
-- `src/` contains the active Python porting workspace
-- `tests/` verifies the current Python workspace
-- the exposed snapshot is no longer part of the tracked repository state
-
-The current Python workspace is not yet a complete one-to-one replacement for the original system, but the primary implementation surface is now Python.
-
-## Why this rewrite exists
-
-I originally studied the exposed codebase to understand its harness, tool wiring, and agent workflow. After spending more time with the legal and ethical questions—and after reading the essay linked below—I did not want the exposed snapshot itself to remain the main tracked source tree.
-
-This repository now focuses on Python porting work instead.
-
-## Repository Layout
-
-```text
-.
-├── src/                                # Python porting workspace
-│   ├── __init__.py
-│   ├── commands.py
-│   ├── main.py
-│   ├── models.py
-│   ├── port_manifest.py
-│   ├── query_engine.py
-│   ├── task.py
-│   └── tools.py
-├── tests/                              # Python verification
-├── assets/omx/                         # OmX workflow screenshots
-├── 2026-03-09-is-legal-the-same-as-legitimate-ai-reimplementation-and-the-erosion-of-copyleft.md
-└── README.md
-```
-
-## Python Workspace Overview
-
-The new Python `src/` tree currently provides:
-
-- **`port_manifest.py`** — summarizes the current Python workspace structure
-- **`models.py`** — dataclasses for subsystems, modules, and backlog state
-- **`commands.py`** — Python-side command port metadata
-- **`tools.py`** — Python-side tool port metadata
-- **`query_engine.py`** — renders a Python porting summary from the active workspace
-- **`main.py`** — a CLI entrypoint for manifest and summary output
-
-## Quickstart
-
-Render the Python porting summary:
+## Quick Start
 
 ```bash
-python3 -m src.main summary
+# Install
+pip install claude-code-robin
+
+# Or install from source
+git clone https://github.com/anxiong2025/claude-code-robin.git
+cd claude-code-robin
+pip install -e .
 ```
 
-Print the current Python workspace manifest:
+## Usage
 
 ```bash
-python3 -m src.main manifest
+# Scan a project
+claude-code-robin scan ./my-project
+
+# Generate full architecture report
+claude-code-robin arch ./my-project
+
+# Output report to file
+claude-code-robin arch ./my-project -o ARCHITECTURE.md
+
+# Analyze module dependencies
+claude-code-robin deps ./my-project
+
+# Print project statistics
+claude-code-robin stats ./my-project
+
+# Interactive mode (with Claude AI)
+claude-code-robin interactive
 ```
 
-List the current Python modules:
+### Interactive Mode
 
-```bash
-python3 -m src.main subsystems --limit 16
+```
+$ claude-code-robin interactive
+claude-code-robin — Interactive Mode
+Read your codebase like Robin reads Poneglyphs.
+
+robin> scan ./src
+robin> deps ./src
+robin> What design patterns does this project use?   # → Claude conversation
+robin> exit
 ```
 
-Run verification:
+### Programmatic Usage
+
+```python
+from src import scan_project, Reporter
+
+# Scan and report
+reporter = Reporter.from_path('./my-project')
+print(reporter.render_full_report())
+
+# Just scan
+manifest = scan_project('./my-project')
+print(f'Found {manifest.total_python_files} Python files')
+print(manifest.to_markdown())
+```
+
+## Testing
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-## Related Essay
+## Project Structure
 
-- [*Is legal the same as legitimate: AI reimplementation and the erosion of copyleft*](https://writings.hongminhee.org/2026/03/legal-vs-legitimate/)
+```
+claude-code-robin/
+├── src/
+│   ├── __init__.py       # Public API exports
+│   ├── main.py           # CLI entrypoint & interactive REPL
+│   ├── models.py         # Core data models (Module, Dependency, ProjectManifest, ArchReport)
+│   ├── scanner.py        # Filesystem scanner & AST dependency analyzer
+│   └── reporter.py       # Markdown report generator
+├── tests/
+│   └── test_porting_workspace.py
+├── pyproject.toml        # Package configuration
+├── LICENSE               # MIT License
+└── README.md
+```
 
-The essay is dated **March 9, 2026**, so it should be read as companion analysis that predates the **March 31, 2026** source exposure that motivated this rewrite direction.
+## Architecture
 
-## Built with `oh-my-codex`
+```
+main.py (CLI + REPL + Claude AI chat)
+  └── reporter.py (report generation)
+        └── scanner.py (filesystem scan + AST analysis)
+              └── models.py (Module, Dependency, ProjectManifest, ArchReport)
+```
 
-The restructuring and documentation work on this repository was AI-assisted and orchestrated with Yeachan Heo's [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex), layered on top of Codex.
+## Environment Variables
 
-- **`$team` mode:** used for coordinated parallel review and architectural feedback
-- **`$ralph` mode:** used for persistent execution, verification, and completion discipline
-- **Codex-driven workflow:** used to turn the main `src/` tree into a Python-first porting workspace
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (for interactive mode) | — |
+| `CLAUDE_CODE_USE_BEDROCK` | Set to `1` to use AWS Bedrock | disabled |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS auth token for Bedrock | — |
+| `AWS_REGION` | AWS region | `us-east-1` |
 
-### OmX workflow screenshots
+## License
 
-![OmX workflow screenshot 1](assets/omx/omx-readme-review-1.png)
-
-*Ralph/team orchestration view while the README and essay context were being reviewed in terminal panes.*
-
-![OmX workflow screenshot 2](assets/omx/omx-readme-review-2.png)
-
-*Split-pane review and verification flow during the final README wording pass.*
-
-## Ownership / Affiliation Disclaimer
-
-- This repository does **not** claim ownership of the original Claude Code source material.
-- This repository is **not affiliated with, endorsed by, or maintained by Anthropic**.
+MIT
