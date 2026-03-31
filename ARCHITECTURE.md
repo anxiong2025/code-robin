@@ -10,6 +10,7 @@
 
 # Table of Contents / 目录
 
+- [Overall Architecture / 整体架构总览](#overall-architecture--整体架构总览)
 - [Quick Start / 快速开始](#quick-start--快速开始)
 - [1. Project Overview / 项目概述](#1-project-overview--项目概述)
 - [2. Tech Stack / 技术栈](#2-tech-stack--技术栈)
@@ -20,13 +21,222 @@
   - [4.3 reporter.py — Report Generator / 报告生成器](#43-reporterpy--report-generator--报告生成器聚合层)
   - [4.4 main.py — CLI & Interactive Shell / 命令行与交互模式](#44-mainpy--cli--interactive-shell--命令行与交互模式应用层)
   - [4.5 \_\_init\_\_.py — Public API / 公开接口](#45-__init__py--public-api--公开接口)
-- [5. Data Flow / 数据流](#5-complete-data-flow--完整数据流)
-- [6. Dependency Graph / 依赖关系](#6-dependency-graph--依赖关系图)
-- [7. Claude AI Integration / AI 集成架构](#7-claude-ai-integration--ai-集成架构)
-- [8. Testing / 测试体系](#8-testing--测试体系)
-- [9. Configuration / 配置说明](#9-configuration--配置说明)
-- [10. Extension Guide / 扩展指南](#10-extension-guide--扩展指南)
-- [11. Design Decisions / 设计决策](#11-design-decisions--设计决策)
+- [5. Claude AI Integration / AI 集成架构](#5-claude-ai-integration--ai-集成架构)
+- [6. Testing / 测试体系](#6-testing--测试体系)
+- [7. Configuration / 配置说明](#7-configuration--配置说明)
+- [8. Extension Guide / 扩展指南](#8-extension-guide--扩展指南)
+- [9. Design Decisions / 设计决策](#9-design-decisions--设计决策)
+- [Author / 作者](#author--作者)
+
+---
+
+# Overall Architecture / 整体架构总览
+
+## System Architecture Diagram / 系统架构图
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER / 用户                               │
+│                                                                 │
+│   $ claude-code-robin scan ./src                                │
+│   $ claude-code-robin arch ./src -o report.md                   │
+│   $ claude-code-robin interactive                               │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     main.py (Application Layer / 应用层)         │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────────┐    │
+│  │  CLI Parser   │  │ Interactive  │  │  Claude AI Chat    │    │
+│  │  (argparse)   │  │ REPL (robin>)│  │  (dual backend)    │    │
+│  │              │  │              │  │                    │    │
+│  │  scan        │  │  known cmd   │  │  Anthropic API     │    │
+│  │  arch [-o]   │  │  → local exec│  │       or           │    │
+│  │  deps        │  │              │  │  AWS Bedrock       │    │
+│  │  stats       │  │  other text  │  │                    │    │
+│  │  interactive │  │  → AI chat   │  │  System Prompt:    │    │
+│  └──────┬───────┘  └──────┬───────┘  │  "You are Robin"   │    │
+│         │                 │          └────────────────────┘    │
+│         └────────┬────────┘                                    │
+│                  │                                              │
+└──────────────────┼──────────────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  reporter.py (Aggregation Layer / 聚合层)        │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    Reporter                              │   │
+│  │                                                         │   │
+│  │  .from_path(path)     ← Factory: scan + analyze         │   │
+│  │  .render_manifest()   ← Project structure overview       │   │
+│  │  .render_stats()      ← Statistics table                 │   │
+│  │  .render_dependencies() ← Grouped import analysis        │   │
+│  │  .render_full_report()  ← All sections → ArchReport      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  scanner.py (Core Engine / 核心引擎层)            │
+│                                                                 │
+│  ┌───────────────────────┐  ┌────────────────────────────┐     │
+│  │   scan_project(root)  │  │  scan_dependencies(root)   │     │
+│  │                       │  │                            │     │
+│  │  1. rglob('*.py')     │  │  1. ast.parse(each file)   │     │
+│  │  2. Counter(modules)  │  │  2. ast.walk(tree)         │     │
+│  │  3. count lines       │  │  3. extract Import nodes   │     │
+│  │  4. → ProjectManifest │  │  4. extract ImportFrom     │     │
+│  │     ├── modules       │  │  5. → list[Dependency]     │     │
+│  │     └── stats         │  │     ├── source             │     │
+│  └───────────────────────┘  │     ├── target             │     │
+│                             │     └── import_type        │     │
+│                             └────────────────────────────┘     │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  models.py (Foundation Layer / 基础层)            │
+│                                                                 │
+│  ┌────────────┐ ┌────────────┐ ┌──────────────┐               │
+│  │   Module    │ │ Dependency │ │ ProjectStats │               │
+│  │  (frozen)   │ │  (frozen)  │ │   (frozen)   │               │
+│  └────────────┘ └────────────┘ └──────────────┘               │
+│  ┌──────────────────┐  ┌────────────────┐                     │
+│  │ ProjectManifest   │  │  ArchReport    │                     │
+│  │  .to_markdown()   │  │  .render()     │                     │
+│  └──────────────────┘  └────────────────┘                     │
+│                                                                 │
+│  Zero internal dependencies — stdlib only (dataclasses, pathlib)│
+│  零内部依赖 — 仅使用标准库                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Layered Architecture / 分层架构
+
+```
+Layer 4 — Application   │ main.py        │ CLI parsing, REPL, AI chat, user I/O
+         应用层          │                │ 命令解析、交互式终端、AI 对话、用户 I/O
+─────────────────────────┼────────────────┼─────────────────────────────────────
+Layer 3 — Aggregation    │ reporter.py    │ Combine scan results into Markdown reports
+         聚合层          │                │ 将扫描结果组合为 Markdown 报告
+─────────────────────────┼────────────────┼─────────────────────────────────────
+Layer 2 — Core Engine    │ scanner.py     │ Filesystem scanning + AST dependency analysis
+         核心引擎层       │                │ 文件系统扫描 + AST 依赖分析
+─────────────────────────┼────────────────┼─────────────────────────────────────
+Layer 1 — Foundation     │ models.py      │ Data models (Module, Dependency, Manifest...)
+         基础层          │                │ 数据模型定义
+```
+
+**Rule: each layer only imports from the layer directly below it. / 规则：每层只导入下一层。**
+
+## Complete Data Flow / 完整数据流
+
+```
+         User specifies a Python project directory
+         用户指定 Python 项目目录
+                     │
+                     ▼
+  ┌──────────────────────────────────┐
+  │          scanner.py              │
+  │                                  │
+  │  scan_project(root)              │
+  │    ├── Path.rglob('*.py')        │───→ file list / 文件列表
+  │    ├── Counter(modules)          │───→ module counts / 模块计数
+  │    ├── sum(lines per file)       │───→ total lines / 总行数
+  │    └── → ProjectManifest         │
+  │          ├── .root               │
+  │          ├── .total_python_files  │
+  │          ├── .modules: tuple     │
+  │          └── .stats: ProjectStats│
+  │                                  │
+  │  scan_dependencies(root)         │
+  │    ├── ast.parse(each .py)       │
+  │    ├── ast.walk(tree)            │
+  │    ├── classify Import nodes     │
+  │    └── → list[Dependency]        │
+  │          ├── .source             │
+  │          ├── .target             │
+  │          └── .import_type        │
+  └──────────────┬───────────────────┘
+                 │
+                 ▼
+  ┌──────────────────────────────────┐
+  │          reporter.py             │
+  │                                  │
+  │  Reporter(manifest, deps)        │
+  │    ├── render_manifest()   ──────│──→ Markdown: project structure
+  │    ├── render_stats()      ──────│──→ Markdown: statistics table
+  │    ├── render_dependencies()─────│──→ Markdown: grouped imports
+  │    └── render_full_report()──────│──→ Markdown: all combined
+  │         └── ArchReport.render()  │
+  └──────────────┬───────────────────┘
+                 │
+                 ▼
+  ┌──────────────────────────────────┐
+  │           main.py                │
+  │                                  │
+  │  CLI mode / CLI 模式:            │
+  │    scan  → render_manifest() ────│──→ stdout
+  │    arch  → render_full_report()──│──→ stdout or file (-o)
+  │    deps  → render_dependencies()─│──→ stdout
+  │    stats → render_stats()   ─────│──→ stdout
+  │                                  │
+  │  Interactive / 交互模式:          │
+  │    known cmd → run_command() ────│──→ stdout (local, no API)
+  │    other text → chat()     ──────│──→ Claude AI → stdout
+  └──────────────────────────────────┘
+```
+
+## Module Dependency Graph / 模块依赖关系图
+
+```
+┌─────────────────────────────────────────────────┐
+│                   main.py                        │
+│         (CLI + REPL + Claude AI chat)            │
+│       [argparse, os, shlex, pathlib]             │
+│       [anthropic*, httpx*, json*]  (* = lazy)    │
+└──────────────────┬──────────────────────────────┘
+                   │ imports / 导入
+                   ▼
+          ┌──────────────────┐
+          │   reporter.py     │
+          │  (Report engine)  │
+          │  [pathlib]        │
+          └────────┬─────────┘
+                   │ imports / 导入
+                   ▼
+          ┌──────────────────┐
+          │   scanner.py      │
+          │  (FS + AST)       │
+          │  [ast, Counter,   │
+          │   pathlib]        │
+          └────────┬─────────┘
+                   │ imports / 导入
+                   ▼
+          ┌──────────────────┐
+          │   models.py       │
+          │  (Data models)    │
+          │  [dataclasses,    │
+          │   pathlib]        │
+          └──────────────────┘
+
+Linear chain, zero circular imports.
+线性链条，零循环依赖。
+```
+
+## Actual Import Map (self-scan result) / 实际 Import 映射（自扫描结果）
+
+```
+__init__  → models (relative), reporter (relative), scanner (relative)
+main      → reporter (relative), scanner (relative)
+            + argparse, os, shlex, pathlib (stdlib)
+            + anthropic, httpx, json (lazy import, for AI chat only)
+reporter  → models (relative), scanner (relative), pathlib (stdlib)
+scanner   → models (relative), ast, collections, pathlib (stdlib)
+models    → dataclasses, pathlib (stdlib only — zero internal deps)
+```
 
 ---
 
@@ -839,139 +1049,7 @@ __all__ = [
 
 ---
 
-# 5. Complete Data Flow / 完整数据流
-
-```
-                  User specifies a Python project directory
-                  用户指定 Python 项目目录
-                              │
-                              ▼
-              ┌───────────────────────────────┐
-              │        scanner.py              │
-              │                               │
-              │  scan_project(root)            │
-              │    │                           │
-              │    ├── Path(root).resolve()    │
-              │    ├── rglob('*.py')           │───→ file list
-              │    ├── Counter(modules)        │───→ module counts
-              │    ├── sum(lines per file)     │───→ total lines
-              │    └── → ProjectManifest       │
-              │           ├── .root            │
-              │           ├── .total_python_files│
-              │           ├── .modules: tuple[Module]│
-              │           └── .stats: ProjectStats│
-              │                               │
-              │  scan_dependencies(root)       │
-              │    │                           │
-              │    ├── ast.parse(each .py)     │
-              │    ├── ast.walk(tree)          │
-              │    ├── extract Import nodes    │
-              │    ├── extract ImportFrom nodes│
-              │    └── → list[Dependency]      │
-              │           ├── .source          │
-              │           ├── .target          │
-              │           └── .import_type     │
-              └───────────────┬───────────────┘
-                              │
-                              ▼
-              ┌───────────────────────────────┐
-              │        reporter.py             │
-              │                               │
-              │  Reporter(manifest, deps)      │
-              │    │                           │
-              │    ├── render_manifest()       │──→ Markdown: project structure
-              │    ├── render_stats()          │──→ Markdown: statistics table
-              │    ├── render_dependencies()   │──→ Markdown: grouped imports
-              │    └── render_full_report()    │──→ Markdown: all combined
-              │         └── ArchReport.render()│
-              └───────────────┬───────────────┘
-                              │
-                              ▼
-              ┌───────────────────────────────┐
-              │          main.py               │
-              │                               │
-              │  CLI mode / CLI 模式:          │
-              │    scan  → render_manifest()   │──→ stdout
-              │    arch  → render_full_report()│──→ stdout or file
-              │    deps  → render_dependencies()│──→ stdout
-              │    stats → render_stats()      │──→ stdout
-              │                               │
-              │  Interactive / 交互模式:        │
-              │    known cmd → run_command()   │──→ stdout
-              │    other    → chat()           │──→ Claude AI → stdout
-              └───────────────────────────────┘
-```
-
----
-
-# 6. Dependency Graph / 依赖关系图
-
-## Internal Dependencies / 内部依赖
-
-```
-┌─────────────────────────────────────────────────┐
-│                   main.py                        │
-│         (CLI + REPL + Claude AI chat)            │
-│       [argparse, os, shlex, pathlib]             │
-│       [anthropic*, httpx*, json*]  (* = lazy)    │
-└──────────────────┬──────────────────────────────┘
-                   │ imports
-                   ▼
-          ┌──────────────────┐
-          │   reporter.py     │
-          │  (Report engine)  │
-          │  [pathlib]        │
-          └────────┬─────────┘
-                   │ imports
-                   ▼
-          ┌──────────────────┐
-          │   scanner.py      │
-          │  (FS + AST)       │
-          │  [ast, Counter,   │
-          │   pathlib]        │
-          └────────┬─────────┘
-                   │ imports
-                   ▼
-          ┌──────────────────┐
-          │   models.py       │
-          │  (Data models)    │
-          │  [dataclasses,    │
-          │   pathlib]        │
-          └──────────────────┘
-
-  __init__.py re-exports from all modules
-  __init__.py 从所有模块重新导出
-```
-
-**Linear chain. No circular imports. / 线性链条。无循环依赖。**
-
-## External Dependencies / 外部依赖
-
-| Package | Required? / 是否必需 | Used by / 使用位置 |
-|---------|---------------------|-------------------|
-| `anthropic` | Required (in deps) / 在依赖中 | `main.py:_chat_anthropic()` |
-| `httpx` | Required (in deps) / 在依赖中 | `main.py:_chat_bedrock()` |
-| `boto3` | Optional / 可选 (`[bedrock]`) | Not directly imported / 未直接导入 |
-
-**Note / 注意：** `anthropic` and `httpx` are lazy-imported inside chat functions. CLI commands work without them if only scanning (no AI chat).
-
-`anthropic` 和 `httpx` 在 chat 函数内延迟导入。如果只用扫描功能（不用 AI 对话），CLI 命令不需要它们。
-
-## Actual Dependency Map (from self-scan) / 实际依赖映射（自扫描结果）
-
-```
-__init__  → models (relative), reporter (relative), scanner (relative)
-main      → reporter (relative), scanner (relative)
-           + argparse, os, shlex, pathlib (stdlib)
-           + anthropic, httpx, json (lazy, for AI chat)
-reporter  → models (relative), scanner (relative), pathlib (stdlib)
-scanner   → models (relative), ast, collections, pathlib (stdlib)
-models    → dataclasses, pathlib (stdlib only)
-```
-
----
-
-# 7. Claude AI Integration / AI 集成架构
+# 5. Claude AI Integration / AI 集成架构
 
 ## Backend Selection / 后端选择
 
@@ -1015,7 +1093,7 @@ Anthropic API 要求 user/assistant 严格交替。
 
 ---
 
-# 8. Testing / 测试体系
+# 6. Testing / 测试体系
 
 ## Test Suite Overview / 测试套件概览
 
@@ -1138,7 +1216,7 @@ python3 -m unittest discover -s tests -v
 
 ---
 
-# 9. Configuration / 配置说明
+# 7. Configuration / 配置说明
 
 ## pyproject.toml
 
@@ -1177,7 +1255,7 @@ claude-code-robin = "src.main:main"  # CLI entry point
 
 ---
 
-# 10. Extension Guide / 扩展指南
+# 8. Extension Guide / 扩展指南
 
 ## Add a new CLI command / 新增 CLI 命令
 
@@ -1249,7 +1327,7 @@ if os.environ.get('USE_OPENAI') == '1':
 
 ---
 
-# 11. Design Decisions / 设计决策
+# 9. Design Decisions / 设计决策
 
 ## Why dataclasses instead of Pydantic? / 为什么用 dataclasses 而不是 Pydantic？
 
